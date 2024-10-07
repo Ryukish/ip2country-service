@@ -8,7 +8,7 @@ import (
 
 func main() {
 	// Configuration
-	url := "http://localhost:8080/api/v1/locations?ip=10.0.0.1"
+	url := "http://localhost:8080/api/v1/find-country?ip=10.0.0.1"
 	totalRequests := 100 // Total requests to send
 
 	// Function to send requests

@@ -1,4 +1,9 @@
 # `ip2country-service` Deployment Guide
+
+This guide provides comprehensive instructions for deploying the `ip2country-service` in various modes, including local and distributed setups. It covers running the service using Docker, Docker Compose, and provides details about configuration environment variables, the rate limiting algorithm used, accessing Prometheus and Grafana for monitoring, trade-offs made during development, and potential future improvements.
+
+---
+
 ## Table of Contents
 
 - [Deployment Modes](#deployment-modes)
@@ -9,10 +14,15 @@
   - [JSON or CSV Local Mode](#json-or-csv-local-mode)
 - [Configuration Environment Variables](#configuration-environment-variables)
 - [Rate Limiting Algorithm](#rate-limiting-algorithm)
+- [Accessing Prometheus and Grafana Dashboards](#accessing-prometheus-and-grafana-dashboards)
+  - [Prometheus Setup and Access](#prometheus-setup-and-access)
+  - [Grafana Setup and Access](#grafana-setup-and-access)
+  - [Grafana Dashboard Configuration](#grafana-dashboard-configuration)
 - [Trade-offs](#trade-offs)
 - [Future Improvements](#future-improvements)
 - [Additional Code References](#additional-code-references)
 - [Conclusion](#conclusion)
+- [Additional Notes](#additional-notes)
 
 ---
 
@@ -90,7 +100,7 @@ You can run the `ip2country-service` in local mode using the provided Dockerfile
    ```bash
    docker run -d -p 8080:8080 \
      -e IP_DATABASE_TYPE=json \
-     -e IP_DATABASE_PATH=/data/ip_database.json \
+     -e IP_DATABASE_PATH=/app/data/ip_database.json \
      -e RATE_LIMITER_TYPE=local \
      -e RATE_LIMIT=5 \
      -e RATE_CAPACITY=10 \
@@ -134,7 +144,7 @@ curl 'http://localhost:8080/api/v1/find-country?ip=8.8.8.8'
 
 ### Running with Docker Compose
 
-For more complex setups, especially when running multiple services like MongoDB and Redis, you can use Docker Compose. This method is suitable for both local development and production environments.
+For more complex setups, especially when running multiple services like MongoDB, Redis, Prometheus, and Grafana, you can use Docker Compose. This method is suitable for both local development and production environments.
 
 #### Steps:
 
@@ -192,11 +202,8 @@ For more complex setups, especially when running multiple services like MongoDB 
          - MONGODB_URI=mongodb://mongo:27017
          - MONGODB_NAME=ip2country
          - IP_DATABASE_TYPE=mongodb
-         - IP_DATABASE_PATH=""
          - RATE_LIMITER_TYPE=redis
          - REDIS_ADDR=redis:6379
-         - REDIS_PASSWORD=
-         - REDIS_DB=0
          - RATE_LIMIT=1
          - RATE_CAPACITY=1
          - RATE_JITTER=10
@@ -215,7 +222,7 @@ For more complex setups, especially when running multiple services like MongoDB 
          - MONGODB_URI=mongodb://mongo:27017
          - MONGODB_NAME=ip2country
        volumes:
-         - ./data:/data   # Mount data directory containing migrate.go, go.mod, and ip_database.json
+         - ./data:/data
        networks:
          - ip2country-net
        depends_on:
@@ -224,6 +231,7 @@ For more complex setups, especially when running multiple services like MongoDB 
 
      prometheus:
        image: prom/prometheus
+       container_name: prometheus
        volumes:
          - ./prometheus.yml:/etc/prometheus/prometheus.yml
        ports:
@@ -233,10 +241,14 @@ For more complex setups, especially when running multiple services like MongoDB 
 
      grafana:
        image: grafana/grafana
+       container_name: grafana
        ports:
          - "3000:3000"
+       environment:
+         - GF_SECURITY_ADMIN_PASSWORD=admin
        volumes:
-         - ./grafana_dashboard.json:/var/lib/grafana/dashboards/ip2country_dashboard.json
+         - ./grafana/provisioning/:/etc/grafana/provisioning/
+         - ./grafana/dashboards/:/var/lib/grafana/dashboards/
        networks:
          - ip2country-net
 
@@ -438,32 +450,240 @@ The `ip2country-service` employs a **token bucket algorithm** for rate limiting.
 
 - **Redis Rate Limiter**: Ideal for distributed environments where multiple instances of the service are running. Redis acts as a centralized store to synchronize the token buckets across all instances.
 
-### Code Snippet: Rate Limiter Interface
+---
 
-```go
-package rate_limiter
+## Accessing Prometheus and Grafana Dashboards
 
-import (
-  "fmt"
-  "ip2country-service/config"
-  "net/http"
-)
+To monitor the `ip2country-service`, you can use Prometheus for metrics collection and Grafana for visualization.
 
-type RateLimiter interface {
-  Limit(next http.Handler) http.Handler
-}
+### Prometheus Setup and Access
 
-func NewRateLimiter(cfg *config.Config) (RateLimiter, error) {
-  switch cfg.RateLimiterType {
-  case "local":
-    return NewLocalRateLimiter(cfg.RateLimit, cfg.RateCapacity, cfg.RateJitter), nil
-  case "redis":
-    return NewRedisRateLimiter(cfg), nil
-  default:
-    return nil, fmt.Errorf("unsupported rate limiter type: %s", cfg.RateLimiterType)
-  }
-}
-```
+#### Steps:
+
+1. **Ensure Prometheus is Running**:
+
+   Verify that the Prometheus container is up and running:
+
+   ```bash
+   docker-compose ps
+   ```
+
+   You should see a service named `prometheus` running.
+
+2. **Access Prometheus Web UI**:
+
+   Open your web browser and navigate to:
+
+   ```
+   http://localhost:9090
+   ```
+
+   This will bring up the Prometheus web interface where you can query metrics and check the status of your targets.
+
+3. **Prometheus Configuration (`prometheus.yml`)**:
+
+   `prometheus.yml` file is set up correctly. It should be mounted in the Prometheus container.
+
+   **prometheus.yml**:
+
+   ```yaml
+   global:
+     scrape_interval: 2s
+
+   scrape_configs:
+     - job_name: 'ip2country-service'
+       static_configs:
+         - targets: ['ip2country-service:8080']
+   ```
+
+   - **Note**: Since all services are on the same Docker network (`ip2country-net`), Prometheus can access `ip2country-service` by its service name.
+
+4. **Verify Targets in Prometheus**:
+
+   Go to the **Targets** page in Prometheus:
+
+   ```
+   http://localhost:9090/targets
+   ```
+
+   Ensure that the `ip2country-service` target is **UP**.
+
+### Grafana Setup and Access
+
+#### Steps:
+
+1. **Ensure Grafana is Running**:
+
+   Verify that the Grafana container is up and running:
+
+   ```bash
+   docker-compose ps
+   ```
+
+   You should see a service named `grafana` running.
+
+2. **Access Grafana Web UI**:
+
+   Open your web browser and navigate to:
+
+   ```
+   http://localhost:3000
+   ```
+
+3. **Log in to Grafana**:
+
+   - **Username**: `admin`
+   - **Password**: `admin` (as set in `GF_SECURITY_ADMIN_PASSWORD`)
+
+   You will be prompted to change the password upon first login.
+
+4. **Verify Prometheus Data Source**:
+
+   The Prometheus data source should be automatically configured via provisioning. You can verify this by navigating to:
+
+   - **Configuration** (gear icon) -> **Data Sources**
+
+   You should see a data source named **Prometheus** pointing to `http://prometheus:9090`.
+
+### Grafana Dashboard Configuration
+
+To visualize metrics, you'll need to set up a Grafana dashboard.
+
+#### Steps:
+
+1. **Create Directory Structure for Provisioning**:
+
+   ```bash
+   mkdir -p grafana/provisioning/datasources
+   mkdir -p grafana/provisioning/dashboards
+   mkdir -p grafana/dashboards
+   ```
+
+2. **Configure Data Source Provisioning**:
+
+   **File**: `grafana/provisioning/datasources/datasource.yml`
+
+   ```yaml
+   apiVersion: 1
+
+   datasources:
+     - name: Prometheus
+       type: prometheus
+       access: proxy
+       url: http://prometheus:9090
+       isDefault: true
+   ```
+
+3. **Configure Dashboard Provisioning**:
+
+   **File**: `grafana/provisioning/dashboards/dashboard.yml`
+
+   ```yaml
+   apiVersion: 1
+
+   providers:
+     - name: 'default'
+       orgId: 1
+       folder: ''
+       type: file
+       options:
+         path: /var/lib/grafana/dashboards
+         disableDeletion: false
+         updateIntervalSeconds: 10
+   ```
+
+4. **Create Grafana Dashboard JSON**:
+
+   **File**: `grafana/dashboards/ip2country_dashboard.json`
+
+   ```json
+   {
+     "title": "ip2country-service Metrics",
+     "panels": [
+       {
+         "type": "graph",
+         "title": "Total HTTP Requests",
+         "targets": [
+           {
+             "expr": "sum(rate(http_requests_total[1m])) by (path)",
+             "legendFormat": "{{path}}",
+             "refId": "A"
+           }
+         ],
+         "id": 1
+       },
+       {
+         "type": "graph",
+         "title": "Request Duration (95th Percentile)",
+         "targets": [
+           {
+             "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, path))",
+             "legendFormat": "{{path}}",
+             "refId": "B"
+           }
+         ],
+         "id": 2
+       },
+       {
+         "type": "graph",
+         "title": "Rate Limit Exceeded",
+         "targets": [
+           {
+             "expr": "sum(rate(http_rate_limit_exceeded_total[1m])) by (path)",
+             "legendFormat": "{{path}}",
+             "refId": "C"
+           }
+         ],
+         "id": 3
+       }
+     ],
+     "schemaVersion": 16,
+     "version": 0
+   }
+   ```
+
+5. **Update `docker-compose.yml` for Grafana**:
+
+   Ensure your Grafana service is set up to load the dashboard and configure the Prometheus data source.
+
+   ```yaml
+   grafana:
+     image: grafana/grafana
+     container_name: grafana
+     ports:
+       - "3000:3000"
+     environment:
+       - GF_SECURITY_ADMIN_PASSWORD=admin
+     volumes:
+       - ./grafana/provisioning/:/etc/grafana/provisioning/
+       - ./grafana/dashboards/:/var/lib/grafana/dashboards/
+     networks:
+       - ip2country-net
+   ```
+
+6. **Access the Grafana Dashboard**:
+
+   - Navigate to **Dashboards** (four squares icon) -> **Manage**.
+   - Open the `ip2country-service Metrics` dashboard.
+
+7. **Generate Traffic to See Metrics**:
+
+   Send requests to your `ip2country-service` to generate metrics:
+
+   ```bash
+   for i in {1..50}; do
+     curl 'http://localhost:8080/api/v1/find-country?ip=8.8.8.8'
+   done
+   ```
+
+8. **Refresh Grafana Dashboard**:
+
+   - Adjust the time range to the last 5 or 15 minutes.
+   - Set the refresh interval (e.g., every 10 seconds).
+
+9. **Verify Metrics are Displayed**:
+
+   You should now see graphs showing the total HTTP requests, request duration, and rate limit exceeded counts.
 
 ---
 
@@ -566,11 +786,59 @@ type IPLocation struct {
 }
 ```
 
+### Monitoring Package Metrics
+
+The monitoring package defines Prometheus metrics.
+
+**File**: `monitoring/monitoring.go`
+
+```go
+package monitoring
+
+import (
+  "github.com/prometheus/client_golang/prometheus"
+)
+
+var (
+  RequestsTotal = prometheus.NewCounterVec(
+    prometheus.CounterOpts{
+      Name: "http_requests_total",
+      Help: "Total number of HTTP requests",
+    },
+    []string{"path"},
+  )
+
+  RequestDuration = prometheus.NewHistogramVec(
+    prometheus.HistogramOpts{
+      Name:    "http_request_duration_seconds",
+      Help:    "Duration of HTTP requests in seconds",
+      Buckets: prometheus.DefBuckets,
+    },
+    []string{"path"},
+  )
+
+  RateLimitExceeded = prometheus.NewCounterVec(
+    prometheus.CounterOpts{
+      Name: "http_rate_limit_exceeded_total",
+      Help: "Total number of HTTP requests that exceeded the rate limit",
+    },
+    []string{"path"},
+  )
+)
+
+func init() {
+  prometheus.MustRegister(RequestsTotal, RequestDuration, RateLimitExceeded)
+}
+```
+
 ---
 
 ## Conclusion
 
-# Additional Notes
+Feel free to customize the configurations and reach out if you need further assistance.
+---
+
+## Additional Notes
 
 - **Data Migration Service**:
 
@@ -590,6 +858,8 @@ type IPLocation struct {
 
   - **Prometheus Configuration** (`prometheus.yml`):
 
+    Ensure you have a `prometheus.yml` file to configure Prometheus to scrape metrics from your services.
+
   - **Grafana Dashboard**:
 
     The `grafana_dashboard.json` file is used to set up a pre-configured dashboard in Grafana.
@@ -597,3 +867,11 @@ type IPLocation struct {
 - **Networking**:
 
   All services are connected via the `ip2country-net` network for internal communication.
+
+- **Testing and Troubleshooting**:
+
+  - If you encounter issues with the Grafana dashboard not displaying data:
+    - Ensure you're generating traffic to the `ip2country-service`.
+    - Verify Prometheus is scraping metrics correctly.
+    - Check the metrics endpoint (`http://localhost:8080/metrics`) for exposed metrics.
+    - Confirm that the Grafana queries match the metric names and labels.

@@ -20,6 +20,7 @@ services:
   ip2country-service:
     image: ip2country-service:latest
     container_name: ip2country-service
+    build: .
     ports:
       - "8080:8080"
     environment:
@@ -49,7 +50,7 @@ services:
       - MONGODB_URI=mongodb://mongo:27017
       - MONGODB_NAME=ip2country
     volumes:
-      - ./data:/data   # Mount data directory containing migrate.go, go.mod, and ip_database.json
+      - ./data:/data
     networks:
       - ip2country-net
     depends_on:
@@ -58,6 +59,7 @@ services:
 
   prometheus:
     image: prom/prometheus
+    container_name: prometheus
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
@@ -67,10 +69,14 @@ services:
 
   grafana:
     image: grafana/grafana
+    container_name: grafana
     ports:
       - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
-      - ./grafana_dashboard.json:/var/lib/grafana/dashboards/ip2country_dashboard.json
+      - ./grafana/provisioning/:/etc/grafana/provisioning/
+      - ./grafana/dashboards/:/var/lib/grafana/dashboards/
     networks:
       - ip2country-net
 
