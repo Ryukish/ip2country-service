@@ -1,14 +1,14 @@
 package config
 
 import (
-	"log"
 	"os"
 	"strconv"
+	"time"
 )
 
 type Config struct {
 	Port            string
-	RateLimit       int
+	RateLimit       float64
 	DatabaseType    string // "json" or "mongodb"
 	DatabasePath    string // For JSON files
 	MongoDBURI      string // For MongoDB connection
@@ -18,21 +18,18 @@ type Config struct {
 	RedisPassword   string
 	RedisDB         int
 	AllowedFields   []string // Fields allowed for partial retrieval
+	RateCapacity    float64
+	RateJitter      time.Duration
 }
 
 // LoadConfig loads the configuration from environment variables or defaults
 func LoadConfig() *Config {
-	rateLimit, err := strconv.Atoi(os.Getenv("RATE_LIMIT"))
-	if err != nil {
-		log.Println("Invalid RATE_LIMIT, defaulting to 5")
-		rateLimit = 5
-	}
 
 	return &Config{
 		Port:            getEnv("PORT", "8080"),
-		RateLimit:       rateLimit,
+		RateLimit:       getEnvAsFloat("RATE_LIMIT", 1),
 		DatabaseType:    getEnv("IP_DATABASE_TYPE", "json"),
-		DatabasePath:    getEnv("IP_DATABASE_PATH", "/data/ip_database.json"),
+		DatabasePath:    getEnv("IP_DATABASE_PATH", "./data/ip_database.json"),
 		MongoDBURI:      getEnv("MONGODB_URI", "mongodb://localhost:27017"),
 		MongoDBName:     getEnv("MONGODB_NAME", "ip2country"),
 		RateLimiterType: getEnv("RATE_LIMITER_TYPE", "local"),
@@ -40,6 +37,8 @@ func LoadConfig() *Config {
 		RedisPassword:   getEnv("REDIS_PASSWORD", ""),
 		RedisDB:         getEnvAsInt("REDIS_DB", 0),
 		AllowedFields:   []string{"country", "city"}, // Default allowed fields for partial retrieval
+		RateCapacity:    getEnvAsFloat("RATE_CAPACITY", 5),
+		RateJitter:      time.Duration(getEnvAsInt("RATE_JITTER", 100)) * time.Millisecond,
 	}
 }
 
@@ -57,6 +56,16 @@ func getEnv(key, defaultValue string) string {
 func getEnvAsInt(key string, defaultValue int) int {
 	valueStr := getEnv(key, "")
 	if value, err := strconv.Atoi(valueStr); err == nil {
+		return value
+	}
+	return defaultValue
+}
+
+// getEnvAsFloat retrieves the value of the environment variable as a float64.
+// It returns the value or the defaultValue if the variable is not present or invalid.
+func getEnvAsFloat(key string, defaultValue float64) float64 {
+	valueStr := getEnv(key, "")
+	if value, err := strconv.ParseFloat(valueStr, 64); err == nil {
 		return value
 	}
 	return defaultValue

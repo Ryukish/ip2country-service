@@ -32,7 +32,7 @@ func TestGetLocation(t *testing.T) {
 	}
 	handler := v1.NewIPHandler(db, cfg)
 
-	req, err := http.NewRequest("GET", "/locations?ip=10.0.0.1", nil)
+	req, err := http.NewRequest("GET", "/find-country?ip=10.0.0.1", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

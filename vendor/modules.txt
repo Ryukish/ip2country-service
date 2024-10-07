@@ -7,9 +7,6 @@ github.com/beorn7/perks/quantile
 # github.com/cespare/xxhash/v2 v2.3.0
 ## explicit; go 1.11
 github.com/cespare/xxhash/v2
-# github.com/davecgh/go-spew v1.1.1
-## explicit
-github.com/davecgh/go-spew/spew
 # github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f
 ## explicit
 github.com/dgryski/go-rendezvous
@@ -114,7 +111,6 @@ go.mongodb.org/mongo-driver/bson/bsonrw
 go.mongodb.org/mongo-driver/bson/bsontype
 go.mongodb.org/mongo-driver/bson/primitive
 go.mongodb.org/mongo-driver/event
-go.mongodb.org/mongo-driver/internal/assert
 go.mongodb.org/mongo-driver/internal/aws
 go.mongodb.org/mongo-driver/internal/aws/awserr
 go.mongodb.org/mongo-driver/internal/aws/credentials
@@ -127,17 +123,14 @@ go.mongodb.org/mongo-driver/internal/csot
 go.mongodb.org/mongo-driver/internal/driverutil
 go.mongodb.org/mongo-driver/internal/handshake
 go.mongodb.org/mongo-driver/internal/httputil
-go.mongodb.org/mongo-driver/internal/integtest
 go.mongodb.org/mongo-driver/internal/logger
 go.mongodb.org/mongo-driver/internal/ptrutil
 go.mongodb.org/mongo-driver/internal/rand
 go.mongodb.org/mongo-driver/internal/randutil
-go.mongodb.org/mongo-driver/internal/require
 go.mongodb.org/mongo-driver/internal/uuid
 go.mongodb.org/mongo-driver/mongo
 go.mongodb.org/mongo-driver/mongo/address
 go.mongodb.org/mongo-driver/mongo/description
-go.mongodb.org/mongo-driver/mongo/integration/mtest
 go.mongodb.org/mongo-driver/mongo/options
 go.mongodb.org/mongo-driver/mongo/readconcern
 go.mongodb.org/mongo-driver/mongo/readpref

@@ -30,7 +30,7 @@ func TestRegisterHandlers(t *testing.T) {
 		method string
 		want   int
 	}{
-		{"/locations?ip=invalid_ip", http.MethodGet, http.StatusBadRequest}, // Expecting 400 for invalid IP
+		{"/find-country?ip=invalid_ip", http.MethodGet, http.StatusBadRequest}, // Expecting 400 for invalid IP
 		{"/metrics", http.MethodGet, http.StatusOK},
 	}
 

@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"ip2country-service/internal/models"
+	"ip2country-service/pkg/utils"
 	"log"
 	"net"
 	"os"
@@ -19,7 +20,7 @@ func NewCSVDatabase(filePath string) (*CSVDatabase, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		log.Printf("Error opening CSV file: %v", err)
-		return nil, fmt.Errorf("failed to open CSV file")
+		return nil, fmt.Errorf("%w: %v", utils.ErrDatabaseQuery, err)
 	}
 	defer file.Close()
 
@@ -29,7 +30,7 @@ func NewCSVDatabase(filePath string) (*CSVDatabase, error) {
 	records, err := reader.ReadAll()
 	if err != nil {
 		log.Printf("Error reading CSV file: %v", err)
-		return nil, fmt.Errorf("failed to read CSV file")
+		return nil, fmt.Errorf("%w: %v", utils.ErrDatabaseQuery, err)
 	}
 
 	var locations []IPLocation
@@ -74,19 +75,21 @@ func NewCSVDatabase(filePath string) (*CSVDatabase, error) {
 func ipToUint32CSV(ipStr string) (uint32, error) {
 	ip := net.ParseIP(ipStr)
 	if ip == nil {
-		return 0, fmt.Errorf("invalid IP address")
+		return 0, fmt.Errorf("%w: %s", utils.ErrInvalidIP, ipStr)
 	}
 	ip = ip.To4()
 	if ip == nil {
-		return 0, fmt.Errorf("invalid IPv4 address")
+		return 0, fmt.Errorf("%w: %s", utils.ErrInvalidIP, ipStr)
 	}
 	return uint32(ip[0])<<24 | uint32(ip[1])<<16 | uint32(ip[2])<<8 | uint32(ip[3]), nil
 }
 
 func (db *CSVDatabase) Find(ipStr string) (*models.Location, error) {
+	const funcName = "CSVDatabase.Find"
 	ipNum, err := ipToUint32CSV(ipStr)
 	if err != nil {
-		return nil, err
+		log.Printf("[%s] Error converting IP '%s' to uint32: %v", funcName, ipStr, err)
+		return nil, fmt.Errorf("%w: %s", utils.ErrInvalidIP, ipStr)
 	}
 
 	// Binary search to find the IP range
@@ -94,8 +97,9 @@ func (db *CSVDatabase) Find(ipStr string) (*models.Location, error) {
 		return db.Locations[i].IPTo >= ipNum
 	})
 
-	if index < len(db.Locations) && db.Locations[index].IPFrom <= ipNum && ipNum <= db.Locations[index].IPTo {
+	if index < len(db.Locations) && db.Locations[index].IPFrom <= ipNum {
 		loc := db.Locations[index]
+		log.Printf("[%s] IP '%s' found in range %d - %d", funcName, ipStr, loc.IPFrom, loc.IPTo)
 		return &models.Location{
 			Country: loc.Country,
 			Region:  loc.Region,
@@ -103,5 +107,6 @@ func (db *CSVDatabase) Find(ipStr string) (*models.Location, error) {
 		}, nil
 	}
 
-	return nil, fmt.Errorf("IP not found")
+	log.Printf("[%s] IP '%s' not found in any range", funcName, ipStr)
+	return nil, fmt.Errorf("%w: %s", utils.ErrDatabaseQuery, ipStr)
 }

@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -46,6 +47,9 @@ func main() {
 	log.Println("Registering API handlers...")
 	api.RegisterHandlers(apiRouter, db, cfg)
 	log.Println("API handlers registered successfully.")
+
+	// Add Prometheus metrics endpoint
+	router.Handle("/metrics", promhttp.Handler())
 
 	// Start the server
 	log.Printf("Server is running on port %s...", cfg.Port)

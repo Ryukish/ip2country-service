@@ -2,56 +2,71 @@ package rate_limiter
 
 import (
 	"math/rand"
+	"net"
 	"net/http"
 	"sync"
 	"time"
 )
 
 type client struct {
-	count     int
-	timestamp time.Time
+	tokens    float64
+	lastCheck time.Time
 }
 
 type LocalRateLimiter struct {
-	limit    int
+	rate     float64
+	capacity float64
 	mu       sync.Mutex
-	requests map[string]*client
-	duration time.Duration
+	clients  map[string]*client
 	jitter   time.Duration
 }
 
-func NewLocalRateLimiter(limit int) *LocalRateLimiter {
+func NewLocalRateLimiter(rate, capacity float64, jitter time.Duration) *LocalRateLimiter {
 	return &LocalRateLimiter{
-		limit:    limit,
-		requests: make(map[string]*client),
-		duration: time.Second,            // 1 second rate limiting window
-		jitter:   500 * time.Millisecond, // 500ms jitter
+		rate:     rate,
+		capacity: capacity,
+		clients:  make(map[string]*client),
+		jitter:   jitter,
 	}
 }
 
 func (rl *LocalRateLimiter) Limit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip := r.RemoteAddr
+		host, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			http.Error(w, `{"error": "Invalid client address"}`, http.StatusBadRequest)
+			return
+		}
+		ip := host
 		now := time.Now()
 
 		rl.mu.Lock()
-		defer rl.mu.Unlock()
-
-		// Check if the client exists
-		c, exists := rl.requests[ip]
-
-		if !exists || now.Sub(c.timestamp) > rl.duration+time.Duration(rand.Int63n(int64(rl.jitter))) {
-			// Reset the request count if it's a new request or the time window has expired
-			rl.requests[ip] = &client{count: 1, timestamp: now}
-		} else {
-			// Increment the request count
-			c.count++
-			if c.count > rl.limit {
-				http.Error(w, `{"error": "Rate limit exceeded"}`, http.StatusTooManyRequests)
-				return
-			}
+		c, exists := rl.clients[ip]
+		if !exists {
+			c = &client{tokens: rl.capacity, lastCheck: now}
+			rl.clients[ip] = c
 		}
 
-		next.ServeHTTP(w, r)
+		elapsed := now.Sub(c.lastCheck).Seconds()
+		c.tokens = min(rl.capacity, c.tokens+elapsed*rl.rate)
+		c.lastCheck = now
+
+		if c.tokens >= 1 {
+			c.tokens--
+			rl.mu.Unlock() // Unlock before proceeding
+			jitter := time.Duration(rand.Int63n(int64(rl.jitter)))
+			time.Sleep(jitter)
+			next.ServeHTTP(w, r)
+		} else {
+			rl.mu.Unlock() // Unlock before responding
+			http.Error(w, `{"error": "Rate limit exceeded"}`, http.StatusTooManyRequests)
+		}
 	})
+}
+
+func min(a, b float64) float64 {
+	if a < b {
+		return a
+	}
+	return b
 }

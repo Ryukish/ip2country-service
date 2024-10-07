@@ -18,11 +18,11 @@ import (
 )
 
 type IPLocation struct {
-	IPFrom  uint32 `bson:"ip_from"`
-	IPTo    uint32 `bson:"ip_to"`
-	Country string `bson:"country"`
-	Region  string `bson:"region"`
-	City    string `bson:"city"`
+	IPFrom  uint32 `json:"ip_from" bson:"ip_from"`
+	IPTo    uint32 `json:"ip_to" bson:"ip_to"`
+	Country string `json:"country" bson:"country"`
+	Region  string `json:"region" bson:"region"`
+	City    string `json:"city" bson:"city"`
 }
 
 func main() {

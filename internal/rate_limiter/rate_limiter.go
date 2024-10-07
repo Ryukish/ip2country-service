@@ -13,7 +13,7 @@ type RateLimiter interface {
 func NewRateLimiter(cfg *config.Config) (RateLimiter, error) {
 	switch cfg.RateLimiterType {
 	case "local":
-		return NewLocalRateLimiter(cfg.RateLimit), nil
+		return NewLocalRateLimiter(cfg.RateLimit, cfg.RateCapacity, cfg.RateJitter), nil
 	case "redis":
 		return NewRedisRateLimiter(cfg), nil
 	default:

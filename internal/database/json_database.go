@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"ip2country-service/internal/models"
+	"ip2country-service/pkg/utils"
 	"log"
 	"net"
 	"os"
@@ -18,7 +19,7 @@ func NewJSONDatabase(filePath string) (*JSONDatabase, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		log.Printf("Error opening JSON file: %v", err)
-		return nil, fmt.Errorf("failed to open JSON file")
+		return nil, fmt.Errorf("%w: %v", utils.ErrDatabaseQuery, err)
 	}
 	defer file.Close()
 
@@ -28,7 +29,7 @@ func NewJSONDatabase(filePath string) (*JSONDatabase, error) {
 	err = decoder.Decode(&locations)
 	if err != nil {
 		log.Printf("Error decoding JSON: %v", err)
-		return nil, fmt.Errorf("failed to decode JSON")
+		return nil, fmt.Errorf("%w: %v", utils.ErrJSONUnmarshal, err)
 	}
 
 	// Sort the locations by IPFrom for efficient searching
@@ -42,20 +43,21 @@ func NewJSONDatabase(filePath string) (*JSONDatabase, error) {
 func ipToUint32Json(ipStr string) (uint32, error) {
 	ip := net.ParseIP(ipStr)
 	if ip == nil {
-		return 0, fmt.Errorf("invalid IP address")
+		return 0, fmt.Errorf("%w: %s", utils.ErrInvalidIP, ipStr)
 	}
 	ip = ip.To4()
 	if ip == nil {
-		return 0, fmt.Errorf("invalid IPv4 address")
+		return 0, fmt.Errorf("%w: %s", utils.ErrInvalidIP, ipStr)
 	}
 	return uint32(ip[0])<<24 | uint32(ip[1])<<16 | uint32(ip[2])<<8 | uint32(ip[3]), nil
 }
 
 func (db *JSONDatabase) Find(ipStr string) (*models.Location, error) {
+	const funcName = "JSONDatabase.Find"
 	ipNum, err := ipToUint32Json(ipStr)
 	if err != nil {
-		log.Printf("Invalid IP address: %v", err)
-		return nil, err
+		log.Printf("[%s] Error converting IP '%s' to uint32: %v", funcName, ipStr, err)
+		return nil, fmt.Errorf("%w: %s", utils.ErrInvalidIP, ipStr)
 	}
 
 	// Binary search to find the IP range
@@ -63,9 +65,9 @@ func (db *JSONDatabase) Find(ipStr string) (*models.Location, error) {
 		return db.Locations[i].IPTo >= ipNum
 	})
 
-	if index < len(db.Locations) && db.Locations[index].IPFrom <= ipNum && ipNum <= db.Locations[index].IPTo {
+	if index < len(db.Locations) && db.Locations[index].IPFrom <= ipNum {
 		loc := db.Locations[index]
-		log.Printf("IP found in range: %d - %d", loc.IPFrom, loc.IPTo)
+		log.Printf("[%s] IP '%s' found in range %d - %d", funcName, ipStr, loc.IPFrom, loc.IPTo)
 		return &models.Location{
 			Country: loc.Country,
 			Region:  loc.Region,
@@ -73,6 +75,6 @@ func (db *JSONDatabase) Find(ipStr string) (*models.Location, error) {
 		}, nil
 	}
 
-	log.Printf("IP not found in any range")
-	return nil, fmt.Errorf("IP not found")
+	log.Printf("[%s] IP '%s' not found in any range", funcName, ipStr)
+	return nil, fmt.Errorf("%w: %s", utils.ErrDatabaseQuery, ipStr)
 }

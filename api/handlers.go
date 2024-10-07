@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // HealthCheckHandler handles the health check requests
@@ -22,16 +21,8 @@ func RegisterHandlers(router *mux.Router, db database.IPDatabase, cfg *config.Co
 	ipHandler := v1.NewIPHandler(db, cfg)
 
 	// Register API route for getting IP location
-	router.HandleFunc("/locations", ipHandler.GetLocation).Methods(http.MethodGet)
+	router.HandleFunc("/find-country", ipHandler.GetLocation).Methods(http.MethodGet)
 
 	// Register health check endpoint
 	router.HandleFunc("/health", HealthCheckHandler).Methods(http.MethodGet)
-
-	// Register Prometheus metrics endpoint
-	RegisterMetrics(router)
-}
-
-// RegisterMetrics registers the Prometheus metrics handler
-func RegisterMetrics(router *mux.Router) {
-	router.Handle("/metrics", promhttp.Handler())
 }
