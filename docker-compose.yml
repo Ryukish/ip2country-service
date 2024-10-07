@@ -1,0 +1,56 @@
+version: '3'
+services:
+  mongo:
+    image: mongo:latest
+    container_name: mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./data/mongo:/data/db
+    networks:
+      - ip2country-net
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - ip2country-net
+
+  ip2country-service:
+    image: ip2country-service:latest
+    container_name: ip2country-service
+    ports:
+      - "8080:8080"
+    environment:
+      - MONGODB_URI=mongodb://mongo:27017
+      - MONGODB_NAME=ip2country
+      - DATABASE_TYPE=mongodb
+      - RATE_LIMITER_TYPE=redis
+      - REDIS_ADDR=redis:6379
+      - RATE_LIMIT=1
+    depends_on:
+      - mongo
+      - redis
+    networks:
+      - ip2country-net
+
+  data-migration:
+    image: golang:1.23-alpine
+    container_name: data-migration
+    working_dir: /data
+    entrypoint: /bin/sh -c "go mod tidy && go run migrate.go -file=ip_database.json -type=json"
+    environment:
+      - MONGODB_URI=mongodb://mongo:27017
+      - MONGODB_NAME=ip2country
+    volumes:
+      - ./data:/data   # Mount data directory containing migrate.go, go.mod, and ip_database.json
+    networks:
+      - ip2country-net
+    depends_on:
+      - mongo
+    restart: "on-failure"
+
+networks:
+  ip2country-net:

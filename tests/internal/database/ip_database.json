@@ -1,0 +1,51 @@
+[
+  {
+    "ip_from": 167772160,
+    "ip_to": 167772415,
+    "country": "US",
+    "region": "California",
+    "city": "Los Angeles"
+  },
+  {
+    "ip_from": 167774464,
+    "ip_to": 167774719,
+    "country": "CA",
+    "region": "Ontario",
+    "city": "Toronto"
+  },
+  {
+    "ip_from": 167776768,
+    "ip_to": 167777023,
+    "country": "GB",
+    "region": "England",
+    "city": "London"
+  },
+  {
+    "ip_from": 167782912,
+    "ip_to": 167783167,
+    "country": "AU",
+    "region": "New South Wales",
+    "city": "Sydney"
+  },
+  {
+    "ip_from": 167784192,
+    "ip_to": 167784447,
+    "country": "IN",
+    "region": "Maharashtra",
+    "city": "Mumbai"
+  },
+  {
+    "ip_from": 134744064,
+    "ip_to": 134744319,
+    "country": "US",
+    "region": "California",
+    "city": "Mountain View"
+  },
+  {
+    "ip_from": 34792960,
+    "ip_to": 34793023,
+    "country": "FR",
+    "region": "Paris",
+    "city": "Paris"
+  }
+]
