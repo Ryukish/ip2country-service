@@ -5,6 +5,7 @@ go 1.23.1
 require (
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/gorilla/mux v1.8.1
+	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/prometheus/client_golang v1.20.4
 	go.mongodb.org/mongo-driver v1.17.1
 )

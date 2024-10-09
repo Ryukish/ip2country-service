@@ -13,15 +13,20 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/patrickmn/go-cache"
 )
 
 type IPHandler struct {
 	db     database.IPDatabase
 	config *config.Config
+	cache  *cache.Cache
 }
 
 func NewIPHandler(db database.IPDatabase, cfg *config.Config) *IPHandler {
-	return &IPHandler{db: db, config: cfg}
+	// Create a cache with a default expiration time of 5 minutes and purge unused items every 10 minutes
+	c := cache.New(5*time.Minute, 10*time.Minute)
+	return &IPHandler{db: db, config: cfg, cache: c}
 }
 
 func (h *IPHandler) GetLocation(w http.ResponseWriter, r *http.Request) {
@@ -38,6 +43,26 @@ func (h *IPHandler) GetLocation(w http.ResponseWriter, r *http.Request) {
 		monitoring.RequestsTotal.WithLabelValues(r.URL.Path, "error").Inc() // Increment request count
 		monitoring.RateLimitExceeded.WithLabelValues(r.URL.Path).Inc()      // Increment rate limit exceeded count
 		utils.RespondWithError(w, http.StatusBadRequest, utils.ErrInvalidIP.Error())
+		return
+	}
+
+	// Check cache first
+	if cachedLoc, found := h.cache.Get(ip); found {
+		log.Printf("IP found in cache: %s", ip)
+		loc := cachedLoc.(*models.Location)
+		response, err := h.buildResponse(loc, fields)
+		if err != nil {
+			monitoring.RequestsTotal.WithLabelValues(r.URL.Path, "error").Inc()
+			log.Printf("Error building response for cached IP %s: %v", ip, err)
+			if errors.Is(err, utils.ErrInvalidFields) {
+				utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+			} else {
+				utils.RespondWithError(w, http.StatusInternalServerError, utils.ErrInternalServer.Error())
+			}
+			return
+		}
+		monitoring.RequestsTotal.WithLabelValues(r.URL.Path, "success").Inc()
+		utils.RespondWithJSON(w, http.StatusOK, response)
 		return
 	}
 
@@ -58,13 +83,16 @@ func (h *IPHandler) GetLocation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("IP found: %+v", loc)
+	// Cache the result
+	h.cache.Set(ip, loc, cache.DefaultExpiration)
+
+	log.Printf("IP found and cached: %+v", loc)
 
 	// Build the response
 	log.Printf("Building response for IP: %s", ip)
 	response, err := h.buildResponse(loc, fields)
 	if err != nil {
-		monitoring.RequestsTotal.WithLabelValues(r.URL.Path, "error").Inc() // Increment request count
+		monitoring.RequestsTotal.WithLabelValues(r.URL.Path, "error").Inc()
 		log.Printf("Error building response for IP %s: %v", ip, err)
 		if errors.Is(err, utils.ErrInvalidFields) {
 			utils.RespondWithError(w, http.StatusBadRequest, err.Error())

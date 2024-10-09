@@ -38,6 +38,9 @@ github.com/montanaflynn/stats
 # github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
 ## explicit
 github.com/munnerz/goautoneg
+# github.com/patrickmn/go-cache v2.1.0+incompatible
+## explicit
+github.com/patrickmn/go-cache
 # github.com/prometheus/client_golang v1.20.4
 ## explicit; go 1.20
 github.com/prometheus/client_golang/internal/github.com/golang/gddo/httputil
