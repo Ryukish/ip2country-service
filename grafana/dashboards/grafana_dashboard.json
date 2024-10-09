@@ -2,43 +2,236 @@
     "title": "ip2country-service Metrics",
     "panels": [
       {
-        "type": "graph",
-        "title": "Total HTTP Requests",
+        "type": "stat",
+        "title": "Summary",
         "targets": [
           {
-            "expr": "sum(rate(http_requests_total[1m])) by (path)",
-            "legendFormat": "{{path}}",
+            "expr": "sum(http_requests_total)",
+            "legendFormat": "Total Requests",
             "refId": "A"
+          },
+          {
+            "expr": "avg(http_request_duration_seconds)",
+            "legendFormat": "Avg Response Time",
+            "refId": "B"
+          },
+          {
+            "expr": "sum(http_rate_limit_exceeded_total)",
+            "legendFormat": "Rate Limit Exceeded",
+            "refId": "C"
           }
         ],
         "id": 1
       },
       {
         "type": "graph",
-        "title": "Request Duration (95th Percentile)",
+        "title": "HTTP Requests and Rate Limits",
         "targets": [
           {
-            "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, path))",
-            "legendFormat": "{{path}}",
+            "expr": "sum(increase(http_requests_total{status=\"success\"}[1m])) by (path)",
+            "legendFormat": "Success - {{path}}",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(increase(http_requests_total{status=\"error\"}[1m])) by (path)",
+            "legendFormat": "Failed - {{path}}",
             "refId": "B"
-          }
-        ],
-        "id": 2
-      },
-      {
-        "type": "graph",
-        "title": "Rate Limit Exceeded",
-        "targets": [
+          },
           {
-            "expr": "sum(rate(http_rate_limit_exceeded_total[1m])) by (path)",
-            "legendFormat": "{{path}}",
+            "expr": "sum(increase(http_rate_limit_exceeded_total[1m])) by (path)",
+            "legendFormat": "Rate Limited - {{path}}",
             "refId": "C"
           }
         ],
-        "id": 3
+        "id": 2,
+        "yaxes": [
+          {
+            "format": "short",
+            "label": "Requests",
+            "logBase": 1,
+            "min": "0",
+            "show": true,
+            "decimals": 0
+          },
+          {
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "show": false
+          }
+        ],
+        "xaxis": {
+          "mode": "time",
+          "show": true,
+          "values": []
+        },
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
+        },
+        "lines": true,
+        "linewidth": 1,
+        "nullPointMode": "null",
+        "pointradius": 2,
+        "fill": 1,
+        "fillGradient": 0,
+        "aliasColors": {},
+        "bars": false,
+        "steppedLine": false,
+        "timeFrom": null,
+        "timeShift": null
+      },
+      {
+        "type": "graph",
+        "title": "Request Duration",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, path))",
+            "legendFormat": "95th Percentile - {{path}}",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.5, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, path))",
+            "legendFormat": "Median - {{path}}",
+            "refId": "B"
+          },
+          {
+            "expr": "sum(rate(http_request_duration_seconds_sum[5m])) by (path) / sum(rate(http_request_duration_seconds_count[5m])) by (path)",
+            "legendFormat": "Average - {{path}}",
+            "refId": "C"
+          }
+        ],
+        "id": 3,
+        "yaxes": [
+          {
+            "format": "s",
+            "label": "Duration",
+            "logBase": 1,
+            "min": "0",
+            "show": true
+          },
+          {
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "show": false
+          }
+        ],
+        "xaxis": {
+          "mode": "time",
+          "show": true,
+          "values": []
+        },
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
+        },
+        "lines": true,
+        "linewidth": 1,
+        "nullPointMode": "null",
+        "pointradius": 2,
+        "fill": 1,
+        "fillGradient": 0,
+        "aliasColors": {},
+        "bars": false,
+        "steppedLine": false,
+        "timeFrom": null,
+        "timeShift": null
+      },
+      {
+        "type": "graph",
+        "title": "IP Lookup Performance",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(ip_lookup_duration_seconds_bucket[5m])) by (le))",
+            "legendFormat": "95th Percentile",
+            "refId": "A"
+          }
+        ],
+        "id": 4
+      },
+      {
+        "type": "graph",
+        "title": "Allowed Fields Usage",
+        "targets": [
+          {
+            "expr": "topk(5, sum(increase(allowed_fields_usage_total[5m])) by (field))",
+            "legendFormat": "{{field}}",
+            "refId": "A"
+          }
+        ],
+        "id": 7,
+        "yaxes": [
+          {
+            "format": "short",
+            "label": "Usage Count",
+            "logBase": 1,
+            "min": "0",
+            "show": true,
+            "decimals": 0
+          },
+          {
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "show": false
+          }
+        ],
+        "xaxis": {
+          "mode": "time",
+          "show": true,
+          "values": []
+        },
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
+        },
+        "lines": true,
+        "linewidth": 1,
+        "nullPointMode": "null",
+        "pointradius": 2,
+        "fill": 1,
+        "fillGradient": 0,
+        "aliasColors": {},
+        "bars": false,
+        "steppedLine": false,
+        "timeFrom": null,
+        "timeShift": null
+      },
+      {
+        "type": "graph",
+        "title": "Error Rate",
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{status=\"error\"}[5m])) / sum(rate(http_requests_total[5m]))",
+            "legendFormat": "Error Rate",
+            "refId": "A"
+          }
+        ],
+        "id": 8,
+        "yaxes": [
+          {
+            "format": "percentunit",
+            "label": null,
+            "logBase": 1,
+            "max": "1",
+            "min": "0",
+            "show": true
+          },
+          {
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          }
+        ]
       }
     ],
     "schemaVersion": 16,
     "version": 0
   }
-  

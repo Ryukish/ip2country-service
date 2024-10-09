@@ -35,17 +35,19 @@ func (h *IPHandler) GetLocation(w http.ResponseWriter, r *http.Request) {
 	// Validate the IP
 	if !utils.ValidateIP(ip) {
 		log.Printf("Invalid IP address: %s", ip)
-		monitoring.RequestsTotal.WithLabelValues(r.URL.Path).Inc()     // Increment request count
-		monitoring.RateLimitExceeded.WithLabelValues(r.URL.Path).Inc() // Increment rate limit exceeded count
+		monitoring.RequestsTotal.WithLabelValues(r.URL.Path, "error").Inc() // Increment request count
+		monitoring.RateLimitExceeded.WithLabelValues(r.URL.Path).Inc()      // Increment rate limit exceeded count
 		utils.RespondWithError(w, http.StatusBadRequest, utils.ErrInvalidIP.Error())
 		return
 	}
 
 	// Query the database for the IP location
 	log.Printf("Querying database for IP: %s", ip)
+	ipLookupStart := time.Now()
 	loc, err := h.db.Find(ip)
+	monitoring.IPLookupDuration.WithLabelValues().Observe(time.Since(ipLookupStart).Seconds())
 	if err != nil {
-		monitoring.RequestsTotal.WithLabelValues(r.URL.Path).Inc() // Increment request count
+		monitoring.RequestsTotal.WithLabelValues(r.URL.Path, "error").Inc() // Increment request count
 		if errors.Is(err, utils.ErrIpNotFound) {
 			log.Printf("IP not found in the database: %s", ip)
 			utils.RespondWithError(w, http.StatusNotFound, err.Error())
@@ -62,7 +64,7 @@ func (h *IPHandler) GetLocation(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Building response for IP: %s", ip)
 	response, err := h.buildResponse(loc, fields)
 	if err != nil {
-		monitoring.RequestsTotal.WithLabelValues(r.URL.Path).Inc() // Increment request count
+		monitoring.RequestsTotal.WithLabelValues(r.URL.Path, "error").Inc() // Increment request count
 		log.Printf("Error building response for IP %s: %v", ip, err)
 		if errors.Is(err, utils.ErrInvalidFields) {
 			utils.RespondWithError(w, http.StatusBadRequest, err.Error())
@@ -79,7 +81,7 @@ func (h *IPHandler) GetLocation(w http.ResponseWriter, r *http.Request) {
 	monitoring.RequestDuration.WithLabelValues(r.URL.Path).Observe(duration)
 
 	// Increment the request count
-	monitoring.RequestsTotal.WithLabelValues(r.URL.Path).Inc()
+	monitoring.RequestsTotal.WithLabelValues(r.URL.Path, "success").Inc()
 
 	// Return the JSON response
 	utils.RespondWithJSON(w, http.StatusOK, response)
@@ -103,6 +105,7 @@ func (h *IPHandler) buildResponse(loc *models.Location, fields string) (map[stri
 			field = strings.TrimSpace(field)
 			if utils.Contains(h.config.AllowedFields, field) {
 				filteredResponse[field] = response[field]
+				monitoring.AllowedFieldsUsage.WithLabelValues(field).Inc()
 			} else {
 				return nil, fmt.Errorf("%w: %s", utils.ErrInvalidFields, field)
 			}

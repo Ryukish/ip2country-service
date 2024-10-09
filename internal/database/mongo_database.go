@@ -8,6 +8,9 @@ import (
 	"ip2country-service/pkg/utils"
 	"log"
 	"net"
+	"time"
+
+	"ip2country-service/monitoring"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -67,8 +70,11 @@ func (db *MongoDatabase) Find(ipStr string) (*models.Location, error) {
 	// Log the filter for debugging
 	log.Printf("[%s] MongoDB filter: %v", funcName, filter)
 
+	dbQueryStart := time.Now()
 	var location IPLocation
 	err = db.collection.FindOne(context.TODO(), filter).Decode(&location)
+	monitoring.DatabaseQueryDuration.WithLabelValues().Observe(time.Since(dbQueryStart).Seconds())
+
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			log.Printf("[%s] IP '%s' not found in MongoDB", funcName, ipStr)

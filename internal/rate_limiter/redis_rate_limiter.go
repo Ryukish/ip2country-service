@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"time"
 
+	"ip2country-service/monitoring"
+
 	"github.com/go-redis/redis/v8"
 )
 
@@ -59,6 +61,7 @@ func (rl *RedisRateLimiter) Limit(next http.Handler) http.Handler {
 			time.Sleep(jitter)
 			next.ServeHTTP(w, r)
 		} else {
+			monitoring.RateLimitExceeded.WithLabelValues(r.URL.Path).Inc()
 			http.Error(w, `{"error": "Rate limit exceeded"}`, http.StatusTooManyRequests)
 		}
 	})
