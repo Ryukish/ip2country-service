@@ -55,8 +55,24 @@ var (
 		},
 		[]string{"field"},
 	)
+
+	CacheHits = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cache_hits_total",
+			Help: "Total number of cache hits",
+		},
+		[]string{"path"},
+	)
+
+	CacheMisses = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cache_misses_total",
+			Help: "Total number of cache misses",
+		},
+		[]string{"path"},
+	)
 )
 
 func init() {
-	prometheus.MustRegister(RequestsTotal, RequestDuration, RateLimitExceeded, IPLookupDuration, DatabaseQueryDuration, AllowedFieldsUsage)
+	prometheus.MustRegister(RequestsTotal, RequestDuration, RateLimitExceeded, IPLookupDuration, DatabaseQueryDuration, AllowedFieldsUsage, CacheHits, CacheMisses)
 }

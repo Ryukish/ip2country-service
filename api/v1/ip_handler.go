@@ -46,47 +46,49 @@ func (h *IPHandler) GetLocation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var loc *models.Location
+	var err error
+	var cacheHit bool
+
+	// Measure IP lookup time, including cache check
+	ipLookupStart := time.Now()
+
 	// Check cache first
 	if cachedLoc, found := h.cache.Get(ip); found {
 		log.Printf("IP found in cache: %s", ip)
-		loc := cachedLoc.(*models.Location)
-		response, err := h.buildResponse(loc, fields)
+		loc = cachedLoc.(*models.Location)
+		cacheHit = true
+	} else {
+		// Query the database for the IP location
+		log.Printf("Querying database for IP: %s", ip)
+		loc, err = h.db.Find(ip)
 		if err != nil {
 			monitoring.RequestsTotal.WithLabelValues(r.URL.Path, "error").Inc()
-			log.Printf("Error building response for cached IP %s: %v", ip, err)
-			if errors.Is(err, utils.ErrInvalidFields) {
-				utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+			if errors.Is(err, utils.ErrIpNotFound) {
+				log.Printf("IP not found in the database: %s", ip)
+				utils.RespondWithError(w, http.StatusNotFound, err.Error())
 			} else {
-				utils.RespondWithError(w, http.StatusInternalServerError, utils.ErrInternalServer.Error())
+				log.Printf("Error querying database for IP %s: %v", ip, err)
+				utils.RespondWithError(w, http.StatusInternalServerError, utils.ErrDatabaseQuery.Error())
 			}
 			return
 		}
-		monitoring.RequestsTotal.WithLabelValues(r.URL.Path, "success").Inc()
-		utils.RespondWithJSON(w, http.StatusOK, response)
-		return
+		// Cache the result
+		h.cache.Set(ip, loc, cache.DefaultExpiration)
 	}
 
-	// Query the database for the IP location
-	log.Printf("Querying database for IP: %s", ip)
-	ipLookupStart := time.Now()
-	loc, err := h.db.Find(ip)
-	monitoring.IPLookupDuration.WithLabelValues().Observe(time.Since(ipLookupStart).Seconds())
-	if err != nil {
-		monitoring.RequestsTotal.WithLabelValues(r.URL.Path, "error").Inc() // Increment request count
-		if errors.Is(err, utils.ErrIpNotFound) {
-			log.Printf("IP not found in the database: %s", ip)
-			utils.RespondWithError(w, http.StatusNotFound, err.Error())
-		} else {
-			log.Printf("Error querying database for IP %s: %v", ip, err)
-			utils.RespondWithError(w, http.StatusInternalServerError, utils.ErrDatabaseQuery.Error())
-		}
-		return
+	// Record IP lookup duration
+	ipLookupDuration := time.Since(ipLookupStart)
+	monitoring.IPLookupDuration.WithLabelValues().Observe(ipLookupDuration.Seconds())
+
+	// Record cache hit/miss
+	if cacheHit {
+		monitoring.CacheHits.WithLabelValues(r.URL.Path).Inc()
+	} else {
+		monitoring.CacheMisses.WithLabelValues(r.URL.Path).Inc()
 	}
 
-	// Cache the result
-	h.cache.Set(ip, loc, cache.DefaultExpiration)
-
-	log.Printf("IP found and cached: %+v", loc)
+	log.Printf("IP found: %+v", loc)
 
 	// Build the response
 	log.Printf("Building response for IP: %s", ip)
